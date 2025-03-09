@@ -42,5 +42,5 @@ setup(
     entry_points={
         "console_scripts": ["hey_siwi = hey_siwi.__main__:main"]
     },
-    extras_require={"test": read_requirements("requirements-test.txt")},
+    extras_require={"test": read_requirements("dev-requirements.txt")},
 )
