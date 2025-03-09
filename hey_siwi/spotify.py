@@ -91,21 +91,49 @@ class PlayPlaylistAction(SpotifyAction):
     def __init__(self, playlist_id: str) -> None:
         self._playlist_id = playlist_id
 
+    def _print_blurb(self) -> None:
+        resp = self.spotify_client.playlist(self._playlist_id)
+        if not resp:
+            raise SpotifyActionError("Unable to get playlist details!")
+        playlist_name = resp["name"]
+        creator_name = resp["owner"]["display_name"]
+        music_note = emoji.emojize(":musical_note:")
+        print(
+            f"Playing {creator_name}'s playlist: "
+            f"{playlist_name} {music_note*3}"
+        )
+
     def execute(self, config: ActionConfig | None = None) -> None:
         super().execute(config)
 
         context_uri = f"spotify:playlist:{self._playlist_id}"
+        self._print_blurb()
         self.spotify_client.start_playback(context_uri=context_uri)
 
 
-class PlaySongsAction(SpotifyAction):
-    def __init__(self, song_ids: list[str]) -> None:
-        self._song_ids = song_ids
+class PlaySongAction(SpotifyAction):
+    def __init__(self, song_id: str) -> None:
+        self._song_id = song_id
+
+    def _print_blurb(self) -> None:
+        resp = self.spotify_client.track(self._song_id)
+        if not resp:
+            raise SpotifyActionError("Unable to get track details!")
+        track_name = resp["name"]
+        artists = ", ".join([artist["name"] for artist in resp["artists"]])
+        music_note = emoji.emojize(":musical_note:")
+        track_emoji = emoji.emojize(":optical_disk:")
+        artists_emoji = emoji.emojize(":man_singer::woman_singer:")
+        print(
+            f"Playing {track_emoji} {track_name} "
+            f"by {artists_emoji} {artists} {music_note*3}"
+        )
 
     def execute(self, config: ActionConfig | None = None) -> None:
         super().execute(config)
 
-        uris = [f"spotify:track:{song_id}" for song_id in self._song_ids]
+        uris = [f"spotify:track:{self._song_id}"]
+        self._print_blurb()
         self.spotify_client.start_playback(uris=uris)
 
 
@@ -129,39 +157,21 @@ class PlayRandomSongAction(SpotifyAction):
         genre = random.choice(genre_list).strip("\n")
         return genre
 
-    @staticmethod
-    def _extract_info(record: dict[str, Any]) -> dict[str, str]:
-        try:
-            return {
-                "id": record["id"],
-                "name": record["name"],
-                "album": record["album"]["name"],
-                "artist": record["artists"][0]["name"],
-            }
-        except KeyError as e:
-            raise SpotifyActionError from e
-
-    @staticmethod
-    def _info_str(record: dict[str, str]) -> str:
-        return f"Found track {record['name']} by {record['artist']}"
-
-    def _get_random(self) -> dict[str, str] | None:
+    def _get_random(self) -> str | None:
         query = f"genre:{self._get_genre()}"
         data = self.spotify_client.search(
             q=query, limit=50, type="track", market="US"
         )
         if not data:
             raise SpotifyActionError
-        samples: list[dict[str, str]] = []
+        samples: list[str] = []
         while True:
             # pick a sample from this batch
             num_items = len(data["tracks"]["items"])
             if num_items == 0:
                 return None
             to_pick = random.randint(0, num_items - 1)
-            samples.append(
-                self._extract_info(data["tracks"]["items"][to_pick])
-            )
+            samples.append(data["tracks"]["items"][to_pick]["id"])
             # check if there's another batch to look at
             if not data["tracks"]["next"]:
                 break
@@ -178,20 +188,19 @@ class PlayRandomSongAction(SpotifyAction):
 
         mag_glass = emoji.emojize(":magnifying_glass_tilted_right:")
         spinner = halo.Halo(spinner="dots")
-        spinner.start(text=f"searching for a song... {mag_glass}")
+        spinner.start(text=f"Searching for a song... {mag_glass}")
 
         # we should use retries in case we get a bad genre with no items!
-        item_record = self._get_random()
+        song_id = self._get_random()
         for _ in range(self._retry_count):
-            item_record = self._get_random()
-            if item_record:
+            song_id = self._get_random()
+            if song_id:
                 break
-        if not item_record:
+        if not song_id:
+            spinner.fail("Unable to find a song!")
             raise SpotifyActionError("Unable to find a song!")
 
-        spinner.succeed(text=self._info_str(item_record))
+        spinner.succeed(text="Found a song!")
 
-        music_note = emoji.emojize(":musical_note:")
-        print(f"playing now... {music_note*2}")
-        subtask = PlaySongsAction([item_record["id"]])
+        subtask = PlaySongAction(song_id)
         subtask.execute(config)

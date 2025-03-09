@@ -3,7 +3,7 @@ import click
 from hey_siwi.spotify import (
     PlayPlaylistAction,
     PlayRandomSongAction,
-    PlaySongsAction,
+    PlaySongAction,
     SpotifyActionConfig,
 )
 
@@ -27,7 +27,7 @@ def play_despacito() -> None:
     cfg = SpotifyActionConfig.create(
         scopes="user-read-playback-state,user-modify-playback-state"
     )
-    action = PlaySongsAction(["6habFhsOp2NvshLv26DqMb"])
+    action = PlaySongAction("6habFhsOp2NvshLv26DqMb")
     action.execute(cfg)
 
 
