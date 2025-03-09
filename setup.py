@@ -31,6 +31,7 @@ def read_requirements(path):
 
 setup(
     name="hey_siwi",
+    python_requires='>=3.11',
     version=read("hey_siwi", "VERSION"),
     description="Awesome hey_siwi created by nonik102",
     url="https://github.com/nonik102/hey_siwi/",
@@ -42,5 +43,5 @@ setup(
     entry_points={
         "console_scripts": ["hey_siwi = hey_siwi.__main__:main"]
     },
-    extras_require={"test": read_requirements("requirements-test.txt")},
+    extras_require={"test": read_requirements("dev-requirements.txt")},
 )

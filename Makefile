@@ -103,7 +103,7 @@ switch-to-poetry: ## Switch to poetry package manager.
 	@echo "[tool.poetry.scripts]" >> pyproject.toml
 	@echo "hey_siwi = 'hey_siwi.__main__:main'" >> pyproject.toml
 	@cat requirements.txt | while read in; do poetry add --no-interaction "$${in}"; done
-	@cat requirements-test.txt | while read in; do poetry add --no-interaction "$${in}" --dev; done
+	@cat dev-requirements.txt | while read in; do poetry add --no-interaction "$${in}" --dev; done
 	@poetry install --no-interaction
 	@mkdir -p .github/backup
 	@mv requirements* .github/backup
