@@ -5,16 +5,17 @@ import random
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import emoji
 import halo
+import pycountry
 import requests
-from spotipy.client import Spotify
-from spotipy.oauth2 import SpotifyOAuth
+import spotipy as sp
 
 from hey_siwi import static
 from hey_siwi.actions import Action, ActionConfig
+from hey_siwi.common import bcolors
 
 DEFAULT_CREDS_PATH = "/home/{USER}/.tokens/spotify_api.tok"
 DEFAULT_REDIRECT_URI = "http://127.0.0.1:8000"
@@ -22,6 +23,51 @@ DEFAULT_REDIRECT_URI = "http://127.0.0.1:8000"
 
 class SpotifyActionError(Exception):
     pass
+
+
+@dataclass
+class SongData:
+    song_name: str
+    artist_names: list[str]
+    album_name: str
+    country_name: str
+    country_flag: str
+    release_year: str
+
+    @staticmethod
+    def _plural_str(s: list[str]) -> str:
+        artist_string = f"{', '.join(s) + 's' * min(1, max(len(s) - 1, 0))}"
+        return artist_string
+
+    @classmethod
+    def from_spotify(cls, data: Any) -> SongData:
+        return SongData(
+            song_name=data["name"],
+            artist_names=[artist["name"] for artist in data["artists"]],
+            album_name=data["album"]["name"],
+            country_name="",
+            country_flag="",
+            release_year=data["album"]["release_date"],
+        )
+
+    def pretty(self) -> str:
+        man_artist = emoji.emojize(":man_singer:")
+        woman_artist = emoji.emojize(":woman_singer:")
+        microphone = emoji.emojize(":microphone:")
+        book = emoji.emojize(":closed_book:")
+        timer = emoji.emojize(":hourglass_not_done:")
+        blue = bcolors.OKGREEN
+        red = bcolors.FAIL
+        noc = bcolors.ENDC
+        return (
+            f"{microphone:>3}{red} Song: {blue}{self.song_name}{noc}\n"
+            f"{man_artist+woman_artist:>3}{red} Artist(s): {blue}{self._plural_str(self.artist_names)}{noc}\n"
+            f"{book:>3} {red}Album: {blue}{self.album_name}{noc}\n"
+            f"{timer:>3} {red}Year: {blue}{self.release_year}{noc}"
+        )
+
+    def __str__(self) -> str:
+        return self.pretty()
 
 
 @dataclass
@@ -63,10 +109,10 @@ class SpotifyActionConfig(ActionConfig):
 
 class SpotifyAction(Action):
     def __init__(self) -> None:
-        self._sp: Spotify | None = None
+        self._sp: sp.Spotify | None = None
 
     @property
-    def spotify_client(self) -> Spotify:
+    def spotify_client(self) -> sp.Spotify:
         if not self._sp:
             raise RuntimeError
         return self._sp
@@ -76,15 +122,21 @@ class SpotifyAction(Action):
             raise SpotifyActionError("Incorrect config provided")
         self._sp = self._get_spotify_client(config)
 
-    def _get_spotify_client(self, config: SpotifyActionConfig) -> Spotify:
-        creds = SpotifyOAuth(
+    def _get_spotify_client(self, config: SpotifyActionConfig) -> sp.Spotify:
+        creds = sp.SpotifyOAuth(
             client_id=config.client_id,
             client_secret=config.client_secret,
             redirect_uri=config.redirect_uri,
             scope=config.scopes,
         )
-        sp = Spotify(auth_manager=creds)
-        return sp
+        sp_client = sp.Spotify(auth_manager=creds)
+        return sp_client
+
+    def handle(self, ex: sp.SpotifyException) -> None:
+        if ex.http_status == 404:
+            j_j = emoji.emojize(":loudly_crying_face:")
+            c = bcolors.FAIL
+            print(f"{c}No available devices to connect to! {j_j}")
 
 
 class PlayPlaylistAction(SpotifyAction):
@@ -107,8 +159,11 @@ class PlayPlaylistAction(SpotifyAction):
         super().execute(config)
 
         context_uri = f"spotify:playlist:{self._playlist_id}"
-        self._print_blurb()
-        self.spotify_client.start_playback(context_uri=context_uri)
+        try:
+            self.spotify_client.start_playback(context_uri=context_uri)
+            self._print_blurb()
+        except sp.SpotifyException as ex:
+            self.handle(ex)
 
 
 class PlaySongAction(SpotifyAction):
@@ -119,22 +174,22 @@ class PlaySongAction(SpotifyAction):
         resp = self.spotify_client.track(self._song_id)
         if not resp:
             raise SpotifyActionError("Unable to get track details!")
-        track_name = resp["name"]
-        artists = ", ".join([artist["name"] for artist in resp["artists"]])
-        music_note = emoji.emojize(":musical_note:")
+        data = SongData.from_spotify(resp)
         track_emoji = emoji.emojize(":optical_disk:")
-        artists_emoji = emoji.emojize(":man_singer::woman_singer:")
-        print(
-            f"Playing {track_emoji} {track_name} "
-            f"by {artists_emoji} {artists} {music_note*3}"
-        )
+        c = bcolors.OKCYAN
+        noc = bcolors.ENDC
+        print(f"{c}Playing!!! {track_emoji}{noc}")
+        print(data)
 
     def execute(self, config: ActionConfig | None = None) -> None:
         super().execute(config)
 
         uris = [f"spotify:track:{self._song_id}"]
-        self._print_blurb()
-        self.spotify_client.start_playback(uris=uris)
+        try:
+            self.spotify_client.start_playback(uris=uris)
+            self._print_blurb()
+        except sp.SpotifyException as ex:
+            self.handle(ex)
 
 
 @dataclass
@@ -197,10 +252,11 @@ class PlayRandomSongAction(SpotifyAction):
             if song_id:
                 break
         if not song_id:
-            spinner.fail("Unable to find a song!")
+            c = bcolors.FAIL
+            spinner.fail(f"{c}Unable to find a song!")
             raise SpotifyActionError("Unable to find a song!")
 
-        spinner.succeed(text="Found a song!")
+        spinner.succeed(text="Found a song!\n")
 
         subtask = PlaySongAction(song_id)
         subtask.execute(config)
