@@ -6,5 +6,4 @@ class ActionConfig:
 
 
 class Action(ABC):
-
     def execute(self, config: ActionConfig | None = None) -> None: ...

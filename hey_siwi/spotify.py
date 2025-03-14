@@ -16,6 +16,7 @@ import spotipy as sp
 from hey_siwi import static
 from hey_siwi.actions import Action, ActionConfig
 from hey_siwi.common import bcolors
+from hey_siwi.printer import Printer
 
 DEFAULT_CREDS_PATH = "/home/{USER}/.tokens/spotify_api.tok"
 DEFAULT_REDIRECT_URI = "http://127.0.0.1:8000"
@@ -23,6 +24,9 @@ DEFAULT_REDIRECT_URI = "http://127.0.0.1:8000"
 
 class SpotifyActionError(Exception):
     pass
+
+
+pretty = Printer()
 
 
 @dataclass
@@ -33,11 +37,6 @@ class SongData:
     country_name: str
     country_flag: str
     release_year: str
-
-    @staticmethod
-    def _plural_str(s: list[str]) -> str:
-        artist_string = f"{', '.join(s) + 's' * min(1, max(len(s) - 1, 0))}"
-        return artist_string
 
     @classmethod
     def from_spotify(cls, data: Any) -> SongData:
@@ -56,14 +55,11 @@ class SongData:
         microphone = emoji.emojize(":microphone:")
         book = emoji.emojize(":closed_book:")
         timer = emoji.emojize(":hourglass_not_done:")
-        blue = bcolors.OKGREEN
-        red = bcolors.FAIL
-        noc = bcolors.ENDC
         return (
-            f"{microphone:>3}{red} Song: {blue}{self.song_name}{noc}\n"
-            f"{man_artist+woman_artist:>3}{red} Artist(s): {blue}{self._plural_str(self.artist_names)}{noc}\n"
-            f"{book:>3} {red}Album: {blue}{self.album_name}{noc}\n"
-            f"{timer:>3} {red}Year: {blue}{self.release_year}{noc}"
+            f"{microphone:>3}{pretty.c1} Song: {pretty.c2}{self.song_name}{pretty.noc}\n"
+            f"{man_artist + woman_artist:>3}{pretty.c1} Artist(s): {pretty.c2}{', '.join(self.artist_names)}{pretty.noc}\n"
+            f"{book:>3} {pretty.c1}Album: {pretty.c2}{self.album_name}{pretty.noc}\n"
+            f"{timer:>3} {pretty.c1}Year: {pretty.c2}{self.release_year}{pretty.noc}"
         )
 
     def __str__(self) -> str:
@@ -150,10 +146,7 @@ class PlayPlaylistAction(SpotifyAction):
         playlist_name = resp["name"]
         creator_name = resp["owner"]["display_name"]
         music_note = emoji.emojize(":musical_note:")
-        print(
-            f"Playing {creator_name}'s playlist: "
-            f"{playlist_name} {music_note*3}"
-        )
+        print(f"Playing {creator_name}'s playlist: {playlist_name} {music_note * 3}")
 
     def execute(self, config: ActionConfig | None = None) -> None:
         super().execute(config)
@@ -176,9 +169,7 @@ class PlaySongAction(SpotifyAction):
             raise SpotifyActionError("Unable to get track details!")
         data = SongData.from_spotify(resp)
         track_emoji = emoji.emojize(":optical_disk:")
-        c = bcolors.OKCYAN
-        noc = bcolors.ENDC
-        print(f"{c}Playing!!! {track_emoji}{noc}")
+        print(f"{pretty.c3}Playing!!! {track_emoji}{pretty.noc}")
         print(data)
 
     def execute(self, config: ActionConfig | None = None) -> None:
@@ -205,6 +196,10 @@ class PlayRandomSongAction(SpotifyAction):
     def __init__(self, retry_count: int = 5) -> None:
         self._retry_count = retry_count
 
+    def _get(self, url: str) -> dict[str, Any]:
+        resp = requests.get(url=url, headers=self.spotify_client._auth_headers())
+        return resp.json()
+
     def _get_genre(self) -> str:
         # spotify doesn't provide info on genres, so use this static list
         genre_file = str(resources.files(static) / "genres.txt")
@@ -214,9 +209,7 @@ class PlayRandomSongAction(SpotifyAction):
 
     def _get_random(self) -> str | None:
         query = f"genre:{self._get_genre()}"
-        data = self.spotify_client.search(
-            q=query, limit=50, type="track", market="US"
-        )
+        data = self.spotify_client.search(q=query, limit=50, type="track", market="US")
         if not data:
             raise SpotifyActionError
         samples: list[str] = []
