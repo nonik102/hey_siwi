@@ -1,4 +1,5 @@
 import click
+from spotipy import Spotify
 
 from hey_siwi.spotify import (
     PlayPlaylistAction,
@@ -38,3 +39,8 @@ def surprise_me() -> None:
     )
     action = PlayRandomSongAction()
     action.execute(cfg)
+
+
+@main.command()
+def make_album() -> None:
+    cfg = SpotifyActionConfig.create(scopes="")

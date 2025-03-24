@@ -50,16 +50,11 @@ class SongData:
         )
 
     def pretty(self) -> str:
-        man_artist = emoji.emojize(":man_singer:")
-        woman_artist = emoji.emojize(":woman_singer:")
-        microphone = emoji.emojize(":microphone:")
-        book = emoji.emojize(":closed_book:")
-        timer = emoji.emojize(":hourglass_not_done:")
         return (
-            f"{microphone:>3}{pretty.c1} Song: {pretty.c2}{self.song_name}{pretty.noc}\n"
-            f"{man_artist + woman_artist:>3}{pretty.c1} Artist(s): {pretty.c2}{', '.join(self.artist_names)}{pretty.noc}\n"
-            f"{book:>3} {pretty.c1}Album: {pretty.c2}{self.album_name}{pretty.noc}\n"
-            f"{timer:>3} {pretty.c1}Year: {pretty.c2}{self.release_year}{pretty.noc}"
+            f"{pretty.e.microphone:>4}{pretty.c1} Song: {pretty.c2}{self.song_name}{pretty.noc}\n"
+            f"{pretty.e.man_artist + pretty.e.woman_artist:>4}{pretty.c1} Artist(s): {pretty.c2}{', '.join(self.artist_names)}{pretty.noc}\n"
+            f"{pretty.e.book:>4} {pretty.c1}Album: {pretty.c2}{self.album_name}{pretty.noc}\n"
+            f"{pretty.e.timer:>4} {pretty.c1}Year: {pretty.c2}{self.release_year}{pretty.noc}"
         )
 
     def __str__(self) -> str:
@@ -130,9 +125,7 @@ class SpotifyAction(Action):
 
     def handle(self, ex: sp.SpotifyException) -> None:
         if ex.http_status == 404:
-            j_j = emoji.emojize(":loudly_crying_face:")
-            c = bcolors.FAIL
-            print(f"{c}No available devices to connect to! {j_j}")
+            print(f"{pretty.c3}No available devices to connect to! {pretty.e.j_j}")
 
 
 class PlayPlaylistAction(SpotifyAction):
@@ -234,9 +227,8 @@ class PlayRandomSongAction(SpotifyAction):
     def execute(self, config: ActionConfig | None = None) -> None:
         super().execute(config)
 
-        mag_glass = emoji.emojize(":magnifying_glass_tilted_right:")
         spinner = halo.Halo(spinner="dots")
-        spinner.start(text=f"Searching for a song... {mag_glass}")
+        spinner.start(text=f"Searching for a song... {pretty.e.mag_glass}")
 
         # we should use retries in case we get a bad genre with no items!
         song_id = self._get_random()
@@ -245,11 +237,15 @@ class PlayRandomSongAction(SpotifyAction):
             if song_id:
                 break
         if not song_id:
-            c = bcolors.FAIL
-            spinner.fail(f"{c}Unable to find a song!")
+            spinner.fail(f"{pretty.c3}Unable to find a song!{pretty.noc}")
             raise SpotifyActionError("Unable to find a song!")
 
         spinner.succeed(text="Found a song!\n")
 
         subtask = PlaySongAction(song_id)
         subtask.execute(config)
+
+
+class MakeAlbumAction(Action):
+    def execute(self, config: ActionConfig | None = None) -> None:
+        super().execute(config)
