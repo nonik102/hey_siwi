@@ -1,5 +1,6 @@
 import click
 
+from hey_siwi.activate import activate
 from hey_siwi.spotify import (
     PlayPlaylistAction,
     PlayRandomSongAction,
@@ -38,3 +39,5 @@ def surprise_me() -> None:
     )
     action = PlayRandomSongAction()
     action.execute(cfg)
+
+main.add_command(activate)
