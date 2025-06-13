@@ -1,16 +1,15 @@
 from __future__ import annotations
+from time import sleep
 import sys
-import contextlib
 import subprocess
-from dataclasses import dataclass
 import os
-import pathlib
 from types import TracebackType
 from typing import ContextManager
 import click
 from pathlib import Path
 
 from hey_siwi.common import ROOT_DIRECTORY_ENVVAR
+from hey_siwi.tmux import TmuxConfig, TmuxManager
 
 
 class cd(ContextManager):
@@ -55,18 +54,29 @@ class MyCommand:
 def get_startup_commands() -> list[MyCommand]:
     return [
         MyCommand(command='printf "===> Entering paradise %s\\n" "$UNICORN"'),
-        MyCommand("echo hi!"),
-        MyCommand("bash"),
+    ]
+
+def get_shutdown_commands() -> list[MyCommand]:
+    return [
         MyCommand(command='printf "===> We are back! %s\\n" "$THUMBS_UP"'),
     ]
 
 
 @click.option("--home-directory", envvar=ROOT_DIRECTORY_ENVVAR, required=True)
+@click.option("--tmux-config", "-t")
 @click.command()
-def activate(home_directory: str) -> None:
+def activate(home_directory: str, tmux_config: str) -> None:
+    with open(tmux_config, 'r', encoding='utf-8') as fp:
+        tmux_conf = TmuxConfig.from_json(fp)
     try:
-        with cd(home_directory):
-            for command in get_startup_commands():
-                command.exec()
+        with TmuxManager(tmux_conf) as tmux:
+            with cd(home_directory):
+                for command in get_startup_commands():
+                    command.exec()
+                tmux.start()
+                click.secho(f"Activated siwi in session {tmux.session.name}", fg='green')
+                sleep(4)
+                for command in get_shutdown_commands():
+                    command.exec()
     except Exception as ex:
         raise click.ClickException(str(ex)) from ex

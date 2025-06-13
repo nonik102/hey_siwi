@@ -2,3 +2,5 @@ spotipy>=2.25
 click
 halo
 emoji
+libtmux
+pydantic
